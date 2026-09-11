@@ -1,0 +1,24 @@
+name: Tests & Quality
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_PASSWORD: postgres
+      redis:
+        image: redis:7
+    
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install -r backend/requirements.txt
+      - run: pytest backend/tests/ --cov=backend/app
+      - run: flake8 backend/app --max-line-length=100
+      - run: black --check backend/app
