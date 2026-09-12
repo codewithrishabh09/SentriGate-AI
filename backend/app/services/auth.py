@@ -2,10 +2,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 from app.config import settings
-from app.services.password import verify_password, hash_password
+import secrets
+import hashlib
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token"""
     to_encode = data.copy()
     
     if expires_delta:
@@ -23,7 +23,6 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 def verify_token(token: str) -> dict:
-    """Verify and decode JWT token"""
     try:
         payload = jwt.decode(
             token,
@@ -38,18 +37,8 @@ def verify_token(token: str) -> dict:
         return None
 
 def create_api_key(user_id: str, name: str = "API Key") -> tuple:
-    """Generate an API key"""
-    import secrets
-    import hashlib
-    
-    # Generate random key
     raw_key = secrets.token_urlsafe(32)
     full_key = f"sk_prod_{raw_key}"
-    
-    # Hash it for storage
     key_hash = hashlib.sha256(full_key.encode()).hexdigest()
-    
-    # Keep prefix for user reference
     key_prefix = full_key[:20]
-    
     return full_key, key_hash, key_prefix

@@ -35,7 +35,7 @@ class APIKeyGenerate(BaseModel):
 
 class APIKeyResponse(BaseModel):
     api_key_id: str
-    key: str  # Only returned on creation!
+    key: str
     key_prefix: str
     name: str
     status: str

@@ -1,21 +1,57 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
+from typing import Optional
+from datetime import timedelta
 from app.database import get_db
 from app.models.user import User
 from app.models.api_key import APIKey
 from app.services.password import hash_password, verify_password
 from app.services.auth import create_access_token, verify_token, create_api_key
 from app.schemas.user import UserCreate, UserLogin, UserResponse, TokenResponse, APIKeyGenerate, APIKeyResponse
-from datetime import timedelta
 from app.config import settings
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+security = HTTPBearer()
 
-@router.post("/register", response_model=UserResponse)
-async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user"""
+
+async def get_current_user(
+    token: str = Depends(security),
+    db: Session = Depends(get_db)
+) -> User:
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     
-    # Check if user exists
+    # Extract token string from HTTPAuthCredentials object
+    token_str = token.credentials if hasattr(token, 'credentials') else str(token)
+    payload = verify_token(token_str)
+    
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    user_id = payload.get("user_id")
+    user = db.query(User).filter(User.user_id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    return user
+
+
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     existing_user = db.query(User).filter(
         (User.email == user_data.email) | (User.username == user_data.username)
     ).first()
@@ -26,7 +62,6 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Email or username already registered"
         )
     
-    # Create new user
     new_user = User(
         email=user_data.email,
         username=user_data.username,
@@ -41,11 +76,9 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     
     return new_user
 
+
 @router.post("/login", response_model=TokenResponse)
 async def login(credentials: UserLogin, db: Session = Depends(get_db)):
-    """Login user and get access token"""
-    
-    # Find user
     user = db.query(User).filter(User.email == credentials.email).first()
     
     if not user or not verify_password(credentials.password, user.password_hash):
@@ -60,7 +93,6 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
             detail="Account is suspended"
         )
     
-    # Create access token
     access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": str(user.user_id), "email": user.email},
@@ -73,18 +105,15 @@ async def login(credentials: UserLogin, db: Session = Depends(get_db)):
         "user": user
     }
 
+
 @router.post("/api-key/generate", response_model=APIKeyResponse)
 async def generate_api_key(
     key_data: APIKeyGenerate,
-    current_user = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Generate a new API key for current user"""
-    
-    # Generate key
     full_key, key_hash, key_prefix = create_api_key(str(current_user.user_id))
     
-    # Store in database
     api_key = APIKey(
         user_id=current_user.user_id,
         key_hash=key_hash,
@@ -101,45 +130,14 @@ async def generate_api_key(
     
     return {
         "api_key_id": str(api_key.api_key_id),
-        "key": full_key,  # Only show once!
+        "key": full_key,
         "key_prefix": api_key.key_prefix,
         "name": api_key.name,
         "status": api_key.status,
         "created_at": api_key.created_at
     }
 
-@router.get("/me", response_model=UserResponse)
-async def get_current_user_info(current_user: User = Depends(get_current_user)):
-    """Get current user information"""
-    return current_user
 
-# Dependency: Get current authenticated user
-async def get_current_user(
-    token: str = None,
-    db: Session = Depends(get_db)
-) -> User:
-    """Extract and validate current user from JWT token"""
-    
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated"
-        )
-    
-    payload = verify_token(token)
-    if not payload:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token"
-        )
-    
-    user_id = payload.get("user_id")
-    user = db.query(User).filter(User.user_id == user_id).first()
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found"
-        )
-    
-    return user
+@router.get("/me", response_model=UserResponse)
+async def get_user_info(current_user: User = Depends(get_current_user)):
+    return current_user
