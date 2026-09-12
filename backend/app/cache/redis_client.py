@@ -1,7 +1,8 @@
-# app/cache/redis_client.py
 import redis
 from app.config import settings
+from typing import Optional
 
+# Create Redis connection
 redis_client = redis.Redis.from_url(
     settings.REDIS_URL,
     decode_responses=True,
@@ -10,8 +11,9 @@ redis_client = redis.Redis.from_url(
     health_check_interval=30
 )
 
-async def get_redis():
+def get_redis():
+    """FastAPI dependency for Redis"""
     try:
         yield redis_client
     except redis.ConnectionError:
-        raise HTTPException(status_code=500, detail="Cache unavailable")
+        yield None

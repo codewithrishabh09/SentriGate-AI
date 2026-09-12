@@ -1,24 +1,53 @@
-# app/middleware/rate_limit.py
+from fastapi import Request, HTTPException, status
 from app.cache.redis_client import redis_client
-from time import time
+from app.services.rate_limiter import check_rate_limit
+from app.database import get_db
+from app.models.api_key import APIKey
+import time
 
-async def rate_limit_check(api_key: str, limit: int = 100, window: int = 3600):
-    """Sliding window rate limiting"""
-    key = f"rate_limit:{api_key}"
-    current_time = int(time())
-    window_start = current_time - window
+async def rate_limit_middleware(request: Request, call_next):
+    """
+    Rate limiting middleware for all requests
+    Checks API key and enforces rate limits
+    """
     
-    # Remove old requests
-    redis_client.zremrangebyscore(key, 0, window_start)
+    # Skip rate limiting for health checks and docs
+    if request.url.path in ["/health", "/docs", "/openapi.json", "/redoc"]:
+        return await call_next(request)
     
-    # Count requests in window
-    request_count = redis_client.zcard(key)
+    # Extract API key from header
+    api_key = request.headers.get("X-API-Key")
     
-    if request_count >= limit:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    if not api_key:
+        # If no API key, allow (for auth endpoints)
+        response = await call_next(request)
+        return response
     
-    # Add current request
-    redis_client.zadd(key, {str(current_time): current_time})
-    redis_client.expire(key, window + 1)
+    # Check rate limit (1 minute window, 100 requests)
+    allowed, info = check_rate_limit(
+        redis_client,
+        api_key=api_key,
+        limit=100,
+        window_seconds=60
+    )
     
-    return {"remaining": limit - request_count - 1}
+    if not allowed:
+        retry_after = info.get("reset_at")
+        if retry_after:
+            retry_after = max(0, retry_after - int(time.time()))
+        
+        return HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Rate limit exceeded",
+            headers={"Retry-After": str(retry_after or 60)}
+        )
+    
+    response = await call_next(request)
+    
+    # Add rate limit info to response headers
+    response.headers["X-RateLimit-Limit"] = str(info.get("limit", 100))
+    response.headers["X-RateLimit-Remaining"] = str(info.get("remaining", 0))
+    if info.get("reset_at"):
+        response.headers["X-RateLimit-Reset"] = str(info.get("reset_at"))
+    
+    return response
