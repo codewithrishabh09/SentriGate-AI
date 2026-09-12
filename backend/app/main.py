@@ -18,6 +18,7 @@ from app.api import auth
 
 # Import middleware
 from app.middleware.rate_limit import rate_limit_middleware
+from app.middleware.validation import ValidationMiddleware, PayloadValidationMiddleware
 
 # Create FastAPI app
 app = FastAPI(
@@ -26,10 +27,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Add rate limiting middleware FIRST (before CORS)
+# Add middleware in correct order (bottom = first executed)
+
+# 1. Payload validation (check size first)
+app.add_middleware(PayloadValidationMiddleware)
+
+# 2. Content-Type validation
+app.add_middleware(ValidationMiddleware)
+
+# 3. Rate limiting
 app.middleware("http")(rate_limit_middleware)
 
-# CORS Middleware
+# 4. CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
