@@ -4,27 +4,55 @@ from app.main import app
 
 client = TestClient(app)
 
-def test_root():
-    response = client.get("/")
+def test_register():
+    """Test user registration"""
+    response = client.post("/api/v1/auth/register", json={
+        "email": "test@example.com",
+        "username": "testuser",
+        "password": "SecurePassword123"
+    })
     assert response.status_code == 200
-    assert "message" in response.json()
+    assert response.json()["email"] == "test@example.com"
 
-def test_health():
-    response = client.get("/health")
-    assert response.status_code == 200
-    assert response.json()["status"] == "healthy"
+def test_register_duplicate():
+    """Test duplicate registration"""
+    # Register first user
+    client.post("/api/v1/auth/register", json={
+        "email": "test2@example.com",
+        "username": "testuser2",
+        "password": "SecurePassword123"
+    })
+    
+    # Try to register again
+    response = client.post("/api/v1/auth/register", json={
+        "email": "test2@example.com",
+        "username": "testuser2",
+        "password": "SecurePassword123"
+    })
+    assert response.status_code == 400
 
-def test_api_status():
-    response = client.get("/api/v1/status")
+def test_login():
+    """Test user login"""
+    # First register
+    client.post("/api/v1/auth/register", json={
+        "email": "login@example.com",
+        "username": "loginuser",
+        "password": "SecurePassword123"
+    })
+    
+    # Then login
+    response = client.post("/api/v1/auth/login", json={
+        "email": "login@example.com",
+        "password": "SecurePassword123"
+    })
     assert response.status_code == 200
-    assert "version" in response.json()
+    assert "access_token" in response.json()
+    assert response.json()["token_type"] == "bearer"
 
-def test_hello():
-    response = client.get("/api/v1/hello")
-    assert response.status_code == 200
-    assert "message" in response.json()
-
-def test_test_request():
-    response = client.post("/api/v1/test-request", json={"test": "data"})
-    assert response.status_code == 200
-    assert response.json()["status"] == "processed"
+def test_login_invalid():
+    """Test login with wrong password"""
+    response = client.post("/api/v1/auth/login", json={
+        "email": "nonexistent@example.com",
+        "password": "WrongPassword123"
+    })
+    assert response.status_code == 401

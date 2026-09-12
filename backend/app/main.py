@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
+from app.api import auth  # Import auth routes
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -17,6 +18,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routes
+app.include_router(auth.router)
+
 @app.get("/")
 async def root():
     return {
@@ -32,20 +36,3 @@ async def health_check():
         "environment": settings.ENVIRONMENT,
         "debug": settings.DEBUG
     }
-
-@app.get("/api/v1/status")
-async def api_status():
-    return {
-        "service": "Security Gateway",
-        "version": "1.0.0",
-        "status": "running"
-    }
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True
-    )
