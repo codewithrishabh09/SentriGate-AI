@@ -2,28 +2,22 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from app.config import settings
 
-# Create engine
+# Create Base FIRST - no model imports!
+Base = declarative_base()
+
 engine = create_engine(
-    settings.DATABASE_URL,
+    settings.DATABASE_URL if settings.DATABASE_URL else "sqlite:///./test.db",
     echo=settings.SQLALCHEMY_ECHO,
     pool_size=10,
     max_overflow=20,
-    pool_pre_ping=True,  # Verify connections before using
-    future=True
+    pool_pre_ping=True,
+    future=True,
+    connect_args={"check_same_thread": False} if "sqlite" in (settings.DATABASE_URL or "sqlite") else {}
 )
 
-# Create session factory
-SessionLocal = sessionmaker(
-    bind=engine,
-    expire_on_commit=False,
-    class_=Session
-)
+SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, class_=Session)
 
-# Base class for all models
-Base = declarative_base()
-
-# Dependency for FastAPI
-def get_db() -> Session:
+def get_db():
     db = SessionLocal()
     try:
         yield db

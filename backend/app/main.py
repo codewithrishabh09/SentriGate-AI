@@ -1,8 +1,24 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
-from app.api import auth  # Import auth routes
 
+# Import models FIRST
+from app.models.user import User
+from app.models.api_key import APIKey
+from app.models.role import Role
+from app.models.permission import Permission
+from app.models.associations import UserRole, RolePermission
+
+# Import database and create tables
+from app.database import Base, engine
+
+# CREATE ALL TABLES ON STARTUP
+Base.metadata.create_all(bind=engine)
+
+# NOW import routes
+from app.api import auth
+
+# Create FastAPI app
 app = FastAPI(
     title=settings.APP_NAME,
     description="Secure API Gateway with ML-powered threat detection",
@@ -18,9 +34,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include routes
+# Include auth routes
 app.include_router(auth.router)
 
+# Health check endpoints
 @app.get("/")
 async def root():
     return {
@@ -36,3 +53,20 @@ async def health_check():
         "environment": settings.ENVIRONMENT,
         "debug": settings.DEBUG
     }
+
+@app.get("/api/v1/status")
+async def api_status():
+    return {
+        "service": "Security Gateway",
+        "version": "1.0.0",
+        "status": "running"
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "app.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True
+    )
