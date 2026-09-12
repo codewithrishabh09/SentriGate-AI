@@ -9,7 +9,7 @@ from app.models.role import Role
 from app.models.permission import Permission
 from app.models.associations import UserRole, RolePermission
 
-# Import database and create tables
+# Import database
 from app.database import Base, engine
 Base.metadata.create_all(bind=engine)
 
@@ -19,26 +19,30 @@ from app.api import auth
 # Import middleware
 from app.middleware.rate_limit import rate_limit_middleware
 from app.middleware.validation import ValidationMiddleware, PayloadValidationMiddleware
+from app.middleware.anomaly import anomaly_detection_middleware
 
-# Create FastAPI app
+# Create app
 app = FastAPI(
     title=settings.APP_NAME,
     description="Secure API Gateway with ML-powered threat detection",
     version="1.0.0"
 )
 
-# Add middleware in correct order (bottom = first executed)
+# Middleware order (bottom = first executed)
 
-# 1. Payload validation (check size first)
+# 1. Payload validation
 app.add_middleware(PayloadValidationMiddleware)
 
 # 2. Content-Type validation
 app.add_middleware(ValidationMiddleware)
 
-# 3. Rate limiting
+# 3. Anomaly detection
+app.middleware("http")(anomaly_detection_middleware)
+
+# 4. Rate limiting
 app.middleware("http")(rate_limit_middleware)
 
-# 4. CORS
+# 5. CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
@@ -47,10 +51,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include auth routes
+# Include routes
 app.include_router(auth.router)
 
-# Health check endpoints
 @app.get("/")
 async def root():
     return {
