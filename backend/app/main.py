@@ -11,12 +11,13 @@ from app.models.associations import UserRole, RolePermission
 
 # Import database and create tables
 from app.database import Base, engine
-
-# CREATE ALL TABLES ON STARTUP
 Base.metadata.create_all(bind=engine)
 
-# NOW import routes
+# Import routes
 from app.api import auth
+
+# Import middleware
+from app.middleware.rate_limit import rate_limit_middleware
 
 # Create FastAPI app
 app = FastAPI(
@@ -24,6 +25,9 @@ app = FastAPI(
     description="Secure API Gateway with ML-powered threat detection",
     version="1.0.0"
 )
+
+# Add rate limiting middleware FIRST (before CORS)
+app.middleware("http")(rate_limit_middleware)
 
 # CORS Middleware
 app.add_middleware(
