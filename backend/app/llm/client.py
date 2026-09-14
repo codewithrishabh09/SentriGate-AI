@@ -175,4 +175,6 @@ Be concise. Respond immediately."""
         return False
 
 
-def get_llm_client() ->
+def get_llm_client() -> LLMClient:
+    """Get LLM client instance"""
+    return LLMClient()
