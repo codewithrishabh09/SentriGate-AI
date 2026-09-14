@@ -19,12 +19,12 @@ from app.api import auth
 # Import middleware
 from app.middleware.rate_limit import rate_limit_middleware
 from app.middleware.validation import ValidationMiddleware, PayloadValidationMiddleware
-from app.middleware.anomaly import anomaly_detection_middleware
+from app.middleware.threat_detection import threat_detection_middleware
 
 # Create app
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Secure API Gateway with ML-powered threat detection",
+    description="Secure API Gateway with ML-powered threat detection + LLM Analysis",
     version="1.0.0"
 )
 
@@ -36,8 +36,8 @@ app.add_middleware(PayloadValidationMiddleware)
 # 2. Content-Type validation
 app.add_middleware(ValidationMiddleware)
 
-# 3. Anomaly detection
-app.middleware("http")(anomaly_detection_middleware)
+# 3. Threat detection (ML + LLM)
+app.middleware("http")(threat_detection_middleware)
 
 # 4. Rate limiting
 app.middleware("http")(rate_limit_middleware)
@@ -59,7 +59,13 @@ async def root():
     return {
         "message": "SentriGate AI API Security Gateway",
         "status": "operational",
-        "environment": settings.ENVIRONMENT
+        "environment": settings.ENVIRONMENT,
+        "security_features": [
+            "Rate Limiting (Redis)",
+            "Input Validation",
+            "ML Anomaly Detection",
+            "LLM Threat Analysis"
+        ]
     }
 
 @app.get("/health")
@@ -67,7 +73,12 @@ async def health_check():
     return {
         "status": "healthy",
         "environment": settings.ENVIRONMENT,
-        "debug": settings.DEBUG
+        "debug": settings.DEBUG,
+        "features": {
+            "ml_detection": True,
+            "llm_analysis": True,
+            "rate_limiting": True
+        }
     }
 
 @app.get("/api/v1/status")
@@ -75,7 +86,8 @@ async def api_status():
     return {
         "service": "Security Gateway",
         "version": "1.0.0",
-        "status": "running"
+        "status": "running",
+        "protection_layers": 5
     }
 
 if __name__ == "__main__":
