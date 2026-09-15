@@ -1,11 +1,11 @@
 from typing import Dict
-from app.llm.client import get_llm_client
+from app.services.rule_based_detector import get_rule_detector
 
 class LLMThreatAnalyzer:
-    """Analyze threats using LLM (non-blocking)"""
+    """Threat analyzer using rules (fast, no API)"""
     
     def __init__(self):
-        self.llm_client = get_llm_client()
+        self.detector = get_rule_detector()
     
     def analyze_request(
         self,
@@ -14,42 +14,20 @@ class LLMThreatAnalyzer:
         payload: Dict = None,
         headers: Dict = None
     ) -> Dict:
-        """Analyze request using LLM (synchronous)"""
+        """Fast rule-based analysis"""
         
-        try:
-            result = self.llm_client.analyze_threat(endpoint, method, payload)
-            
-            return {
-                "classification": result.get("classification", "safe"),
-                "confidence": self._confidence_to_score(result.get("confidence", "low")),
-                "confidence_level": result.get("confidence", "low"),
-                "threats": result.get("threats_detected", []),
-                "reasoning": result.get("reasoning", ""),
-                "cached": False
-            }
+        result = self.detector.detect_threats(payload or {})
         
-        except Exception as e:
-            print(f"LLM analyzer error: {e}")
-            return {
-                "classification": "safe",
-                "confidence": 0.3,
-                "confidence_level": "low",
-                "threats": [],
-                "reasoning": "LLM analysis skipped",
-                "cached": False
-            }
-    
-    @staticmethod
-    def _confidence_to_score(confidence: str) -> float:
-        """Convert confidence level to score"""
-        mapping = {
-            "low": 0.3,
-            "medium": 0.6,
-            "high": 0.9
+        return {
+            "classification": result["classification"],
+            "confidence": result["risk_score"],
+            "confidence_level": "high",
+            "threats": result["threats"],
+            "reasoning": result["reasoning"],
+            "cached": False
         }
-        return mapping.get(str(confidence).lower(), 0.5)
 
 
-def get_llm_analyzer() -> LLMThreatAnalyzer:
-    """Get LLM analyzer instance"""
+def get_llm_analyzer():
+    """Get analyzer instance"""
     return LLMThreatAnalyzer()

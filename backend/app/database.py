@@ -2,17 +2,16 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session, declarative_base
 from app.config import settings
 
-# Create Base FIRST - no model imports!
 Base = declarative_base()
 
+# Create engine with proper pool settings for MySQL
 engine = create_engine(
-    settings.DATABASE_URL if settings.DATABASE_URL else "sqlite:///./test.db",
-    echo=settings.SQLALCHEMY_ECHO,
+    settings.database_url,
+    echo=settings.sqlalchemy_echo,
     pool_size=10,
     max_overflow=20,
     pool_pre_ping=True,
-    future=True,
-    connect_args={"check_same_thread": False} if "sqlite" in (settings.DATABASE_URL or "sqlite") else {}
+    pool_recycle=3600,  # Recycle connections every hour
 )
 
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False, class_=Session)
