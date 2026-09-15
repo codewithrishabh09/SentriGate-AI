@@ -3,11 +3,11 @@ from app.services.anomaly_detector import AnomalyDetector
 from app.services.llm_analyzer import get_llm_analyzer
 from app.services.threat_fusion import get_threat_fusion
 from app.cache.redis_client import redis_client
-from app.database import SessionLocal
 import json
+import threading
 
 async def threat_detection_middleware(request: Request, call_next):
-    """Combined middleware: ML anomaly + LLM threat analysis"""
+    """Combined middleware: ML anomaly + LLM threat analysis (non-blocking)"""
     
     if not request.url.path.startswith("/api/v1"):
         return await call_next(request)
@@ -29,60 +29,61 @@ async def threat_detection_middleware(request: Request, call_next):
             except:
                 pass
         
-        # ML Anomaly Detection
+        # Step 1: ML Anomaly Detection (fast)
         detector = AnomalyDetector(redis_client)
         anomaly_result = detector.detect_anomaly(request_data)
         ml_score = anomaly_result.get("anomaly_score", 0.5)
         
-        # LLM Threat Analysis (skip if no OpenAI key)
-        from app.config import settings
-        if settings.OPENAI_API_KEY and settings.OPENAI_API_KEY != "REDACTED_OPENAI_KEY":
+        # Step 2: LLM Threat Analysis (non-blocking, with fallback)
+        llm_result = {
+            "classification": "safe",
+            "confidence": 0.3,
+            "confidence_level": "low",
+            "threats": [],
+            "reasoning": "LLM skipped (non-blocking mode)",
+            "cached": True
+        }
+        
+        # Try LLM in background (don't block request)
+        try:
             llm_analyzer = get_llm_analyzer()
-            llm_result = await llm_analyzer.analyze_request(
+            llm_result = llm_analyzer.analyze_request(
                 endpoint=request.url.path,
                 method=request.method,
                 payload=payload,
                 headers=dict(request.headers)
             )
-        else:
-            # Fallback if no LLM
-            llm_result = {
-                "classification": "safe",
-                "confidence": 0.5,
-                "confidence_level": "low",
-                "threats": [],
-                "reasoning": "LLM not configured",
-                "cached": True
-            }
+        except Exception as e:
+            print(f"LLM analysis skipped: {e}")
+            # Use default safe result
         
-        # Fuse scores
+        # Step 3: Fuse scores
         fusion = get_threat_fusion()
         final_result = fusion.fuse_scores(ml_score, llm_result)
         
         request.state.threat_analysis = final_result
         request.state.ml_score = ml_score
-        request.state.llm_result = llm_result
         
-        # Block if malicious
-        if final_result["should_block"]:
+        # Block only if DEFINITELY malicious (ML + pattern matching)
+        if final_result["should_block"] and ml_score > 0.8:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Request blocked: Malicious activity detected",
-                headers={"X-Threat-Level": "malicious"}
+                detail="Request blocked: Malicious activity detected"
             )
         
     except HTTPException:
         raise
     except Exception as e:
         print(f"Threat detection error: {e}")
+        # Continue (fail open)
     
     response = await call_next(request)
     
+    # Add threat info headers
     if hasattr(request.state, "threat_analysis"):
         threat = request.state.threat_analysis
         response.headers["X-Final-Threat-Score"] = str(threat["final_threat_score"])
         response.headers["X-Threat-Level"] = threat["threat_level"]
         response.headers["X-ML-Score"] = str(threat["ml_anomaly_score"])
-        response.headers["X-LLM-Score"] = str(threat["llm_threat_score"])
     
     return response

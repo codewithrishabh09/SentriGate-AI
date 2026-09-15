@@ -37,7 +37,7 @@ class UserCreate(BaseModel):
 
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=1)
+    password: str
 
 
 class UserResponse(BaseModel):
