@@ -66,33 +66,3 @@ It combines **JWT authentication, API key management, Redis-based rate limiting,
                   │ Protected  │   │  Logs   │
                   │    APIs    │   └─────────┘
                   └────────────┘
-
-## 📄 License
-
-This project is currently intended for **educational and development purposes**.
-
----
-
-## 👨‍💻 Author
-
-### Rishabh Dwivedi
-
-**Backend Developer | AI Engineer**
-
-🔗 **GitHub:** [codewithrishabh09](https://github.com/codewithrishabh09)
-
-🔗 **LinkedIn:** [Rishabh Dwivedi](https://www.linkedin.com/in/rishabh-dwivedi-855857374/)
-
----
-
-## ⭐ Support
-
-If you find **SentriGate AI** useful, please consider giving the repository a ⭐ on GitHub.
-
-Your feedback, suggestions, issues, and contributions are always welcome.
-
----
-
-### 🛡️ SentriGate AI
-
-**Secure APIs. Detect Threats. Control Traffic.**
