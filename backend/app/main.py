@@ -8,63 +8,60 @@ from app.models.api_key import APIKey
 from app.models.role import Role
 from app.models.permission import Permission
 from app.models.associations import UserRole, RolePermission
+from app.models.audit import AuditLog, ThreatEvent, SecurityAlert
 
 # Import database
 from app.database import Base, engine
 Base.metadata.create_all(bind=engine)
 
-# Import routes
-from app.api import auth
-
 # Import middleware
 from app.middleware.rate_limit import rate_limit_middleware
 from app.middleware.validation import ValidationMiddleware, PayloadValidationMiddleware
 from app.middleware.threat_detection import threat_detection_middleware
+from app.middleware.audit_logging import audit_logging_middleware
+
+# Import routes DIRECTLY (not from __init__.py)
+from app.api.auth import router as auth_router
+from app.api.audit import router as audit_router
 
 # Create app
 app = FastAPI(
-    title=settings.APP_NAME,
-    description="Secure API Gateway with ML-powered threat detection + LLM Analysis",
+    title=settings.app_name,
+    description="Secure API Gateway with ML-powered threat detection",
     version="1.0.0"
 )
 
 # Middleware order (bottom = first executed)
-
-# 1. Payload validation
 app.add_middleware(PayloadValidationMiddleware)
-
-# 2. Content-Type validation
 app.add_middleware(ValidationMiddleware)
-
-# 3. Threat detection (ML + LLM)
 app.middleware("http")(threat_detection_middleware)
-
-# 4. Rate limiting
+app.middleware("http")(audit_logging_middleware)
 app.middleware("http")(rate_limit_middleware)
 
-# 5. CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=settings.allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Include routes
-app.include_router(auth.router)
+# Include routers
+app.include_router(auth_router)
+app.include_router(audit_router)
 
 @app.get("/")
 async def root():
     return {
         "message": "SentriGate AI API Security Gateway",
         "status": "operational",
-        "environment": settings.ENVIRONMENT,
+        "environment": settings.environment,
         "security_features": [
             "Rate Limiting (Redis)",
             "Input Validation",
             "ML Anomaly Detection",
-            "LLM Threat Analysis"
+            "Rule-Based Threats",
+            "Audit Logging"
         ]
     }
 
@@ -72,12 +69,13 @@ async def root():
 async def health_check():
     return {
         "status": "healthy",
-        "environment": settings.ENVIRONMENT,
-        "debug": settings.DEBUG,
+        "environment": settings.environment,
+        "debug": settings.debug,
         "features": {
             "ml_detection": True,
-            "llm_analysis": True,
-            "rate_limiting": True
+            "rule_based_threats": True,
+            "rate_limiting": True,
+            "audit_logging": True
         }
     }
 
@@ -87,7 +85,7 @@ async def api_status():
         "service": "Security Gateway",
         "version": "1.0.0",
         "status": "running",
-        "protection_layers": 5
+        "protection_layers": 7
     }
 
 if __name__ == "__main__":

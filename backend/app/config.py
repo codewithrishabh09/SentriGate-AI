@@ -1,36 +1,37 @@
-from pydantic import Field
 from pydantic_settings import BaseSettings
 from typing import List
 
+
 class Settings(BaseSettings):
     """Application settings"""
-    
+
     app_name: str = "SentriGate AI"
     environment: str = "development"
     debug: bool = True
-    
+
     database_url: str = "sqlite:///./test.db"
     sqlalchemy_echo: bool = False
-    
+
     redis_url: str = "redis://localhost:6379/0"
-    
+
     secret_key: str = "your-secret-key-change-in-production"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
-    
+
     allowed_origins: List[str] = [
         "http://127.0.0.1:3000",
         "http://localhost:3000",
         "http://127.0.0.1:8000",
         "http://localhost:8000",
     ]
-    
+
     log_level: str = "INFO"
-    
+
     class Config:
         env_file = ".env"
         case_sensitive = False
         extra = "allow"
+
 
 settings = Settings()
 
